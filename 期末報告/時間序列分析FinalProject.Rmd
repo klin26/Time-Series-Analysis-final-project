@@ -1,0 +1,140 @@
+---
+title: "時間序列與分析FinalProject"
+author: "111024509陳冠霖"
+header-includes:
+- \usepackage{xeCJK}
+- \setCJKmainfont[Scale=1]{標楷體-繁}
+output:
+  pdf_document:
+    toc: false
+    number_sections: false
+    df_print: kable
+    highlight: tango
+    latex_engine: xelatex
+    extra_dependencies:
+    - algorithm
+    - algorithmic
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(xts)
+library(zoo)
+library(tseries)
+library(timeSeries)
+library(forecast)
+library(quantmod)
+library(fGarch)
+library(ggplot2)
+library(ggfortify)
+library(rugarch)
+library(stats)
+```
+
+```{r}
+dat <- read.csv("/Users/klin26/清華大學/時間序列分析/期末報告/出口貿易總額.csv",header = T)
+dat.ts <- ts(dat$按新臺幣計算.百萬元.,frequency=12,start=99)
+idx <- 1:(length(dat[,2])-17)
+dat_train=dat[idx,]
+dat_test=dat[-idx,]
+dat_train=ts(dat_train$按新臺幣計算.百萬元.,frequency=12,start=99)
+dat_test=ts(dat_test$按新臺幣計算.百萬元.,frequency=12,start=111)
+```
+
+
+$$
+\begin{aligned}
+&Z_t=\mu_t+T_t+S_t+a_t\\
+&\text{where }\ \mu_t=\text{level},\
+\ T_t=\text{trend},\
+\ S_t=\text{seasonality}\\
+\\
+&\bar{\mu}_t=\alpha(Z_t-\bar{S}_{t-s})+(1-\alpha)(\bar{\mu}_{t-1}+\bar{T}_{t-1}),&0<\alpha<1,\\
+&\bar{T}_t=\beta(\bar{\mu}_{t}-\overline{\mu}_{t-1})+(1-\beta)\bar{T}_{t-1},&0<\beta<1,\\
+&\bar{S}_t=\gamma(Z_t-\bar{\mu}_t)+(1-\gamma)\bar{S}_{t-1},&0<\gamma<1.\\
+&\text{where }\ \alpha,\beta,\gamma\text{ are smoothing constants}\\
+\\
+&\hat Z_t(k)=\bar\mu_t+k\bar T_t+\bar S_{t+k-hs},\ h=1+\text{int}(k/s)
+\end{aligned}
+$$
+
+
+```{r fig.width=8,fig.height=4,fig.align='center'}
+par(mfrow=c(1,2))
+holttrend <- HoltWinters(dat_train, gamma=FALSE)
+holttrend
+plot(holttrend,main="Holt filtering")
+
+holtwinters <- HoltWinters(dat_train, seasonal=c("multiplicative"))
+holtwinters
+plot(holtwinters)
+```
+
+```{r}
+# holttrend$fitted
+holttrend$SSE
+# holtwinters$fitted
+holtwinters$SSE
+```
+
+```{r}
+forecast_holttrend <- forecast(holttrend, h=17)
+forecast_holttrend
+plot(forecast_holttrend)
+lines(dat.ts,col="black")
+sqrt(mean((forecast_holttrend$mean-dat_test)^2))
+```
+
+```{r}
+forecast_holtwinters <- forecast(holtwinters, h=17)
+forecast_holtwinters
+plot(forecast_holtwinters)
+lines(dat.ts,col="black")
+sqrt(mean((forecast_holtwinters$mean-dat_test)^2))
+```
+
+```{r}
+Box.test(forecast_holttrend$residuals, lag=20, type="Ljung-Box")
+Box.test(forecast_holtwinters$residuals, lag=20, type="Ljung-Box")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+ts.plot(dat.ts)
+```
+
+```{r}
+fit <- stl(dat.ts,s.window = "periodic")
+autoplot(fit, ts.colour = 'black')
+```
+
+```{r}
+plot.ts(dat.ts, col = 'gray')
+lines(fit$time.series[,2], 
+      col = "red", lwd = 1, lty = 2)
+```
+
+```{r}
+dat.dif <- dat.ts - fit$time.series[,2]
+plot.ts(dat.dif)
+```
+
+```{r}
+par(mfrow = c(1,2))
+plot(fit$time.series[,3], 
+     col = "blue", main = 'Remainder', ylab = "")
+qqnorm(fit$time.series[,3])
+qqline(fit$time.series[,3])
+```
